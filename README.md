@@ -1,37 +1,44 @@
-# LangChain
 # Research & Summarization Agent
 
 ## Overview
-This repository contains a **Research & Summarization Agent** built using LangChain and LangGraph. It is designed to perform a multi-step task involving tool integration, data handling, and agentic reasoning. 
+This repository contains a **Research & Summarization Agent** built using LangChain and LangGraph. It is designed to perform multi-step tasks involving tool integration, data handling, and agentic reasoning to provide comprehensive research capabilities.
 
 **The Problem it Solves:** 
-Provide a topic, and the agent autonomously:
-1. Searches the web for current information.
-2. Scrapes relevant URLs for detailed content.
-3. Summarizes the findings.
-4. Saves the context into a vector database (ChromaDB) for long-term memory and Retrieval-Augmented Generation (RAG).
+When researching complex topics, analysts often need to find the latest information, synthesize it with prior research, and produce a concise summary. This agent automates that workflow:
+1. **Retrieves** past historical context from a local vector database.
+2. **Searches** the web for current, up-to-date information.
+3. **Summarizes** the combined findings using an LLM.
+4. **Saves** the newly generated context back into the vector database for long-term memory and future context (RAG).
 
 ## Architecture
-The system is built on a state machine architecture defined by **LangGraph**, demonstrating how to move beyond simple sequential chains.
+The system is built on a state machine architecture defined by **LangGraph**, demonstrating how to move beyond simple sequential chains to robust, graph-based agentic workflows.
 
 ```mermaid
 graph TD
-    User([User Input: Topic]) --> Planner[Agent: Planner]
-    Planner --> |Determine actions| Search[Tool: DuckDuckGo Searcher]
-    Search --> |URLs found| Scraper[Tool: Web Scraper]
-    Scraper --> |Raw Content| Summarizer[Agent: Summarizer]
-    Summarizer --> Memory[(ChromaDB Vector Store)]
-    Memory --> |RAG Context| Summarizer
-    Summarizer --> Output([Final Summary Report])
+    User([User Input: Topic]) --> Retrieve[Retrieve Context Node]
+    Retrieve <--> |Query/Return Past Context| Memory[(ChromaDB)]
+    Retrieve --> Search[Web Search Node]
+    Search <--> |Search Query/Results| WebTool[Web Search Tool]
+    Search --> Summarize[Summarizer Node]
+    Summarize --> |Generate Summary| LLM[OpenAI GPT-4o-mini]
+    Summarize --> Save[Save Context Node]
+    Save --> |Index new summary| Memory
+    Save --> Output([Final Summary Report])
 ```
 
+## Design Choices
+- **LangGraph over Simple Chains**: Enables stateful, resilient multi-step workflows. Utilizing a `TypedDict` for `AgentState` ensures strict type safety as data flows between retrieval, execution, and synthesis nodes.
+- **Local Vector Database (ChromaDB)**: Chosen for local, serverless operation without external infrastructure dependencies. It uses OpenAI embeddings (`text-embedding-3-small`) to provide long-term memory via Retrieval-Augmented Generation (RAG).
+- **Modular Component Architecture**: Extensible design separates graph logic (`graph.py`, `nodes.py`) from external systems (`vector_store.py`, tools).
+
 ## Repository Structure
-- `src/agents/`: Logic for different agent roles.
+- `src/agents/`: Logic for the LangGraph state machine, nodes, and state definitions.
 - `src/tools/`: Custom LangChain tool definitions (e.g., Web Searcher).
-- `src/memory/`: Persistence logic and Vector DB integration.
+- `src/memory/`: Persistence logic and Vector DB integration (ChromaDB).
 - `src/utils/`: Helpers for data cleaning, API management, etc.
-- `data/`: Sample data for RAG and testing purposes.
-- `tests/`: Automated test suite using `pytest`.
+- `data/`: Local storage directory for ChromaDB vector embeddings.
+- `tests/`: Automated test suite using `pytest` and `unittest.mock`.
+- `src/main.py`: Interactive CLI entry point.
 
 ## Setup & Execution
 
@@ -42,10 +49,8 @@ Ensure you have Python 3.10+ installed.
 Clone the repository and install the required dependencies:
 ```bash
 python -m venv venv
-# On Windows:
+
 .\venv\Scripts\activate
-# On Unix or MacOS:
-source venv/bin/activate
 
 pip install -r requirements.txt
 ```
@@ -55,16 +60,16 @@ Create a `.env` file from the provided template and add your API keys:
 ```bash
 cp .env.example .env
 ```
-Ensure you populate `OPENAI_API_KEY` and any other required keys.
+Ensure you populate `OPENAI_API_KEY` to enable the LLM and Embedding models.
 
 ### 4. Running the Agent
-Execute the main entry point to start the application:
+Execute the main entry point to start the interactive workflow:
 ```bash
 python src/main.py
 ```
 
 ### 5. Running Tests
-To run the automated test suite, use `pytest`:
+To run the automated test suite and validate graph execution, use `pytest`:
 ```bash
-pytest tests/
+python -m pytest tests/ -v
 ```
